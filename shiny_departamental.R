@@ -8,9 +8,6 @@ library(spdplyr)
 library(reshape)
 library(lubridate)
 
-
-setwd('C://Users//Leo//Desktop//peru-geojson')
-
 # Datas GeoJson
 data_depart = readOGR('peru_departamental_simple.geojson')
 data_provincial = readOGR('peru_distrital_simple.geojson')
