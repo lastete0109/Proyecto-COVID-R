@@ -6,6 +6,7 @@ library(tictoc)
 library(shiny)
 library(reshape)
 library(lubridate)
+library(purrr)
 
 #setwd(r'(C:\Users\Leo\Desktop\Proyecto COVID - R)')
 
@@ -311,34 +312,31 @@ observe({
   if(analisis=='Distrital'){
     req(input$Distrito)
     
-    dist_selecc = c('ATE','BARRANCO')#input$Distrito
+    dist_selecc = input$Distrito
     data_selecc = data_distrital[data_distrital$NOMBDIST %in% dist_selecc,]
     metricas = fx_metricas("Dist",dist_selecc)
-    data_selecc@data =  data_selecc@data %>% left_join(metricas,by= c("NOMBDIST"="DISTRITO"))
-    
-    labels = sprintf(
-      "<strong>%s</strong><br/>
-      Infectados totales: %d<br/>
-      Mujeres: %d<br/>
-      Hombres: %d<br/>
-      Pico de infectados: %s<br/>
-      Infectados ayer: %d <br/>
-      Fallecidos totales: %d <br/>",
-      metricas$DISTRITO,
-      metricas$TOTAL,
-      metricas$FEMENINO,
-      metricas$MASCULINO,
-      metricas$PICO,
-      metricas$INFECTADOS_AYER,
-      metricas$TOTAL_F) %>% lapply(htmltools::HTML)
-    
+    data_selecc@data =  data_selecc@data %>% 
+                        left_join(metricas,by= c("NOMBDIST"="DISTRITO"))  %>%
+                        mutate(LABEL=pmap(list(a=NOMBDIST,b=TOTAL,c=FEMENINO,d=MASCULINO,
+                                               e=PICO_INF,f=INFECTADOS_AYER,g=TOTAL_F),
+                                    function(a,b,c,d,e,f,g){
+                                    htmltools::HTML(sprintf("<strong>%s</strong><br/>
+                                                             Infectados totales: %d<br/>
+                                                             Mujeres: %d<br/>
+                                                             Hombres: %d<br/>
+                                                             Pico de infectados: %s<br/>
+                                                             Infectados ayer: %d <br/>
+                                                             Fallecidos totales: %d <br/>",
+                                                             a,b,c,d,e,ifelse(is.na(f),0,f),g))}
+                                                            ))
+  
     leafletProxy("mapa") %>%
       clearShapes() %>%
       addPolygons(stroke = TRUE,
                   color='black',
                   weight = 1,
                   data=data_selecc,
-                  label = labels,
+                  label = ~LABEL,
                   highlight = highlightOptions(bringToFront = TRUE,
                                                color="red",
                                                weight=3),
@@ -347,6 +345,7 @@ observe({
                                  padding = "3px 8px"),
                     textsize = "12px",
                     direction = "auto"))
+    
   }
   
   })  
@@ -375,15 +374,3 @@ observe({
 shinyApp(ui = ui, server = server)
 
 
-
-
-pal = colorNumeric("viridis", NULL)
-
-leaflet(data) %>%
-  addTiles() %>%
-  addPolygons(stroke = TRUE, color='black',weight = 0.3,
-              smoothFactor = 0.6, fillOpacity = 0.6,
-              fillColor = ~pal(log10(AREA_MINAM)),
-              label = ~paste0(NOMBDIST, ": ", AREA_MINAM)) %>%
-  addLegend(pal = pal, values = ~log10(AREA_MINAM), opacity = 1.0,
-            labFormat = labelFormat(transform = function(x) round(10^x)))
