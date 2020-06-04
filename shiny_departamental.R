@@ -1,7 +1,5 @@
-options(stringsAsFactors = FALSE,
-        spinner.color="#0275D8",
-        spinner.color.background="#ffffff",
-        spinner.size=2)
+options(stringsAsFactors = FALSE)
+
 library(dplyr)
 library(rgdal)
 library(leaflet)
@@ -14,13 +12,11 @@ library(purrr)
 library(ggplot2)
 library(gganimate)
 library(gifski)
-library(shinycssloaders)
 
 setwd("C://Users//Leo//Desktop//Proyecto COVID - R")
 
 # Datas GeoJson
 data_depart = readOGR('peru_departamental_simple.geojson')
-data_provincial = readOGR('peru_distrital_simple.geojson')
 data_distrital = readOGR('peru_distrital_simple.geojson')
 
 # Informacion del MINSA
@@ -29,14 +25,17 @@ fallecidos = read.csv('https://cloud.minsa.gob.pe/s/Md37cjXmjT9qYSa/download')
 
 # Despegables
 list_depart = as.character(data_depart$NOMBDEP)
-list_prov = as.character(sort(unique(data_provincial$NOMBPROV)))
+list_prov = as.character(sort(unique(data_distrital$NOMBPROV)))
 list_distr = as.character(sort(unique(data_distrital$NOMBDIST)))
 lista_analisis = c('Departamental','Provincial','Distrital')
 
 fx_metricas =  function(tipo,filtro){
+  posibles = c("DEPARTAMENTO","DISTRITO","PROVINCIA")
   
   dia_semana = ifelse(wday(Sys.Date())-1==0,7,wday(Sys.Date())-1)
+  
   semana_pasada = seq(Sys.Date()-dia_semana-6,Sys.Date()-dia_semana,by="days")
+  
   contagiados_clean = contagiados %>%
     select(FECHA_RESULTADO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD,SEXO) %>%
     mutate(FECHA_RESULTADO=as.Date(FECHA_RESULTADO,format='%d/%m/%Y'),
@@ -44,186 +43,81 @@ fx_metricas =  function(tipo,filtro){
            PROVINCIA=ifelse(grepl('EN INVESTIGACIÓN',PROVINCIA),NA,PROVINCIA),
            DISTRITO=ifelse(grepl('EN INVESTIGACIÓN',DISTRITO),NA,DISTRITO),
            DIA=weekdays(FECHA_RESULTADO))
-  fallecidos_clean = fallecidos %>%
+  
+  fallecidos_clean =  fallecidos %>%
     select(FECHA_FALLECIMIENTO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD_DECLARADA,SEXO) %>%
     mutate(FECHA_FALLECIMIENTO=as.Date(FECHA_FALLECIMIENTO,format='%d/%m/%Y'),
            PROVINCIA=ifelse(PROVINCIA=="",NA,PROVINCIA),
            DISTRITO=ifelse(DISTRITO=="",NA,toupper(DISTRITO)))
   
-  if(tipo=="Dep"){
-    
-    # Analizamos contagiados 
-    contagiados_filtro = contagiados_clean %>% 
-      select(FECHA_RESULTADO,DEPARTAMENTO,SEXO,EDAD,DIA) %>%
-      filter(DEPARTAMENTO %in% filtro)
-    
-    resumen = contagiados_filtro %>% group_by(DEPARTAMENTO,SEXO) %>% 
-      summarise(Infectados=n()) %>% ungroup() %>%
-      cast(DEPARTAMENTO~SEXO,fill=0) %>% mutate(TOTAL=MASCULINO+FEMENINO+`POR DETERMINAR`)
-    
-    resumen_dia = contagiados_filtro %>% group_by(DEPARTAMENTO,FECHA_RESULTADO) %>%
-      summarise(Infectados=n()) %>% top_n(1,Infectados) %>% select(-Infectados) %>%
-      dplyr::rename("PICO_INF"="FECHA_RESULTADO")
-    
-    resumen_dia_semana =  contagiados_filtro %>% group_by(DEPARTAMENTO,DIA) %>%
-      summarise(Infectados=n()) %>% top_n(2,Infectados) %>%
-      mutate(DIAS_MAS_INFECTADOS=paste0(DIA,collapse=',')) %>% ungroup() %>%
-      distinct(DEPARTAMENTO,DIAS_MAS_INFECTADOS) 
-    
-    resumen_ayer =  contagiados_filtro %>% filter(FECHA_RESULTADO==Sys.Date()-days(1)) %>% 
-      group_by(DEPARTAMENTO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_AYER"="Infectados")
-    
-    resumen_semana_pasada = contagiados_filtro %>% filter(FECHA_RESULTADO %in% semana_pasada) %>% 
-      group_by(DEPARTAMENTO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_SEMANA_PASADA"="Infectados")
-    
-    resumen_cons =  resumen %>% 
-      left_join(resumen_dia) %>% 
-      left_join(resumen_dia_semana) %>%
-      left_join(resumen_ayer) %>%
-      left_join(resumen_semana_pasada)
-    
-    # Analizamos fallecidos
-    fallecidos_filtro =   fallecidos_clean %>% 
-      select(FECHA_FALLECIMIENTO,DEPARTAMENTO,SEXO,EDAD_DECLARADA) %>%
-      filter(DEPARTAMENTO %in% filtro)
-    
-    resumen_rip = fallecidos_filtro %>% mutate(SEXO = paste0(SEXO,"_F")) %>% group_by(DEPARTAMENTO,SEXO) %>% 
-      summarise(Fallecidos=n()) %>% ungroup() %>%
-      cast(DEPARTAMENTO~SEXO,fill=0) %>% 
-      mutate(TOTAL_F= rowSums(.[grep("_F", names(.))], na.rm = TRUE))
-    
-    resumen_rip_semana_pasada = fallecidos_filtro %>% filter(FECHA_FALLECIMIENTO %in% semana_pasada) %>% 
-      group_by(DEPARTAMENTO) %>% summarise(Fallecidos=n()) %>% ungroup() %>%
-      dplyr::rename("FALLECIDOS_SEMANA_PASADA"="Fallecidos")
-    
-    resumen_rip_cons = resumen_rip %>% 
-      left_join(resumen_rip_semana_pasada)
-    
-    # Consolidamos info.
-    metricas = resumen_cons  %>% left_join(resumen_rip_cons)
-    return(metricas)
-    
-  }
+  # Nos quedamos solo con las columnas de interes
+  contagiados_interes = contagiados_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
   
-  if(tipo=="Prov"){
-    contagiados_filtro =  contagiados_clean %>% 
-      select(FECHA_RESULTADO,PROVINCIA,SEXO,EDAD,DIA) %>%
-      filter(PROVINCIA %in% filtro)
-    
-    resumen = contagiados_filtro %>% group_by(DEPARTAMENTO,SEXO) %>% 
-      summarise(Infectados=n()) %>% ungroup() %>%
-      cast(DEPARTAMENTO~SEXO,fill=0) %>% mutate(TOTAL=MASCULINO+FEMENINO+`POR DETERMINAR`)
-    
-    resumen_dia = contagiados_filtro %>% group_by(DEPARTAMENTO,FECHA_RESULTADO) %>%
-      summarise(Infectados=n()) %>% top_n(1,Infectados) %>% select(-Infectados) %>%
-      dplyr::rename("PICO_INF"="FECHA_RESULTADO")
-    
-    resumen_dia_semana =  contagiados_filtro %>% group_by(DEPARTAMENTO,DIA) %>%
-      summarise(Infectados=n()) %>% top_n(2,Infectados) %>%
-      mutate(DIAS_MAS_INFECTADOS=paste0(DIA,collapse=',')) %>% ungroup() %>%
-      distinct(DEPARTAMENTO,DIAS_MAS_INFECTADOS) 
-    
-    resumen_ayer =  contagiados_filtro %>% filter(FECHA_RESULTADO==Sys.Date()-days(1)) %>% 
-      group_by(DEPARTAMENTO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_AYER"="Infectados")
-    
-    resumen_semana_pasada = contagiados_filtro %>% filter(FECHA_RESULTADO %in% semana_pasada) %>% 
-      group_by(DEPARTAMENTO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_SEMANA_PASADA"="Infectados")
-    
-    resumen_cons =  resumen %>% 
-      left_join(resumen_dia) %>% 
-      left_join(resumen_dia_semana) %>%
-      left_join(resumen_ayer) %>%
-      left_join(resumen_semana_pasada)
-    
-    # Analizamos fallecidos
-    fallecidos_filtro =   fallecidos_clean %>% 
-      select(FECHA_FALLECIMIENTO,DEPARTAMENTO,SEXO,EDAD_DECLARADA) %>%
-      filter(DEPARTAMENTO %in% filtro)
-    
-    resumen_rip = fallecidos_filtro %>% mutate(SEXO = paste0(SEXO,"_F")) %>% group_by(DEPARTAMENTO,SEXO) %>% 
-      summarise(Fallecidos=n()) %>% ungroup() %>%
-      cast(DEPARTAMENTO~SEXO,fill=0) %>% 
-      mutate(TOTAL_F= rowSums(.[grep("_F", names(.))], na.rm = TRUE))
-    
-    resumen_rip_semana_pasada = fallecidos_filtro %>% filter(FECHA_FALLECIMIENTO %in% semana_pasada) %>% 
-      group_by(DEPARTAMENTO) %>% summarise(Fallecidos=n()) %>% ungroup() %>%
-      dplyr::rename("FALLECIDOS_SEMANA_PASADA"="Fallecidos")
-    
-    resumen_rip_cons = resumen_rip %>% 
-      left_join(resumen_rip_semana_pasada)
-    
-    # Consolidamos info.
-    metricas = resumen_cons  %>% left_join(resumen_rip_cons)
-    return(metricas)
-    
-    
-  }
+  fallecidos_interes =  fallecidos_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
   
-  if(tipo=="Dist"){
-    contagiados_filtro =  contagiados_clean %>% 
-      select(FECHA_RESULTADO,DISTRITO,SEXO,EDAD,DIA) %>%
-      filter(DISTRITO %in% filtro)
-    
-    resumen = contagiados_filtro %>% group_by(DISTRITO,SEXO) %>% 
-      summarise(Infectados=n()) %>% ungroup() %>%
-      cast(DISTRITO~SEXO,fill=0) %>% mutate(TOTAL=MASCULINO+FEMENINO+`POR DETERMINAR`)
-    
-    resumen_dia = contagiados_filtro %>% group_by(DISTRITO,FECHA_RESULTADO) %>%
-      summarise(Infectados=n()) %>% top_n(1,Infectados) %>% select(-Infectados) %>%
-      dplyr::rename("PICO_INF"="FECHA_RESULTADO")
-    
-    resumen_dia_semana =  contagiados_filtro %>% group_by(DISTRITO,DIA) %>%
-      summarise(Infectados=n()) %>% top_n(2,Infectados) %>%
-      mutate(DIAS_MAS_INFECTADOS=paste0(DIA,collapse=',')) %>% ungroup() %>%
-      distinct(DISTRITO,DIAS_MAS_INFECTADOS) 
-    
-    resumen_ayer =  contagiados_filtro %>% filter(FECHA_RESULTADO==Sys.Date()-days(1)) %>% 
-      group_by(DISTRITO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_AYER"="Infectados")
-    
-    resumen_semana_pasada = contagiados_filtro %>% filter(FECHA_RESULTADO %in% semana_pasada) %>% 
-      group_by(DISTRITO) %>%
-      summarise(Infectados=n()) %>% ungroup() %>%
-      dplyr::rename("INFECTADOS_SEMANA_PASADA"="Infectados")
-    
-    resumen_cons =  resumen %>% 
-      left_join(resumen_dia) %>% 
-      left_join(resumen_dia_semana) %>%
-      left_join(resumen_ayer) %>%
-      left_join(resumen_semana_pasada)
-    
-    # Analizamos fallecidos
-    fallecidos_filtro =   fallecidos_clean %>% 
-      select(FECHA_FALLECIMIENTO,DISTRITO,SEXO,EDAD_DECLARADA) %>%
-      filter(DISTRITO %in% filtro)
-    
-    resumen_rip = fallecidos_filtro %>% mutate(SEXO = paste0(SEXO,"_F")) %>% group_by(DISTRITO,SEXO) %>% 
-      summarise(Fallecidos=n()) %>% ungroup() %>%
-      cast(DISTRITO~SEXO,fill=0) %>% 
-      mutate(TOTAL_F= rowSums(.[grep("_F", names(.))], na.rm = TRUE))
-    
-    resumen_rip_semana_pasada = fallecidos_filtro %>% filter(FECHA_FALLECIMIENTO %in% semana_pasada) %>% 
-      group_by(DISTRITO) %>% summarise(Fallecidos=n()) %>% ungroup() %>%
-      dplyr::rename("FALLECIDOS_SEMANA_PASADA"="Fallecidos")
-    
-    resumen_rip_cons = resumen_rip %>% 
-      left_join(resumen_rip_semana_pasada)
-    
-    # Consolidamos info.
-    metricas = resumen_cons  %>% left_join(resumen_rip_cons)
-    return(metricas)
-    
-    
-  }
+  
+  # Analizamos contagiados 
+  contagiados_filtro =  contagiados_interes %>% 
+    select(FECHA_RESULTADO,SEXO,EDAD,DIA,INTERES) %>%
+    filter(INTERES %in% filtro)
+  
+  resumen = contagiados_filtro %>% mutate(SEXO = paste0(SEXO,"_I")) %>%
+    group_by(INTERES,SEXO) %>% 
+    summarise(Infectados=n()) %>% ungroup() %>%
+    cast(INTERES~SEXO,fill=0) %>% 
+    mutate(TOTAL_I=rowSums(.[grep("_I", names(.))], na.rm = TRUE))
+  
+  resumen_dia = contagiados_filtro %>% group_by(INTERES,FECHA_RESULTADO) %>%
+    summarise(Infectados=n()) %>% top_n(1,Infectados) %>% select(-Infectados) %>%
+    dplyr::rename("PICO_INF"="FECHA_RESULTADO")
+  
+  resumen_dia_semana =  contagiados_filtro %>% group_by(INTERES,DIA) %>%
+    summarise(Infectados=n()) %>% top_n(2,Infectados) %>%
+    mutate(DIAS_MAS_INFECTADOS=paste0(DIA,collapse=',')) %>% ungroup() %>%
+    distinct(INTERES,DIAS_MAS_INFECTADOS) 
+  
+  resumen_ayer =  contagiados_filtro %>% filter(FECHA_RESULTADO==Sys.Date()-days(1)) %>% 
+    group_by(INTERES) %>%
+    summarise(Infectados=n()) %>% ungroup() %>%
+    dplyr::rename("INFECTADOS_AYER"="Infectados")
+  
+  resumen_semana_pasada = contagiados_filtro %>% filter(FECHA_RESULTADO %in% semana_pasada) %>% 
+    group_by(INTERES) %>%
+    summarise(Infectados=n()) %>% ungroup() %>%
+    dplyr::rename("INFECTADOS_SEMANA_PASADA"="Infectados")
+  
+  resumen_cons =  resumen %>% 
+    left_join(resumen_dia) %>% 
+    left_join(resumen_dia_semana) %>%
+    left_join(resumen_ayer) %>%
+    left_join(resumen_semana_pasada)
+  
+  # Analizamos fallecidos
+  fallecidos_filtro =   fallecidos_interes %>% 
+    select(FECHA_FALLECIMIENTO,INTERES,SEXO,EDAD_DECLARADA) %>%
+    filter(INTERES %in% filtro)
+  
+  resumen_rip = fallecidos_filtro %>% mutate(SEXO = paste0(SEXO,"_F")) %>% 
+    group_by(INTERES,SEXO) %>% 
+    summarise(Fallecidos=n()) %>% ungroup() %>%
+    cast(INTERES~SEXO,fill=0) %>% 
+    mutate(TOTAL_F= rowSums(.[grep("_F", names(.))], na.rm = TRUE))
+  
+  resumen_rip_semana_pasada = fallecidos_filtro %>% filter(FECHA_FALLECIMIENTO %in% semana_pasada) %>% 
+    group_by(INTERES) %>% summarise(Fallecidos=n()) %>% ungroup() %>%
+    dplyr::rename("FALLECIDOS_SEMANA_PASADA"="Fallecidos")
+  
+  resumen_rip_cons =  resumen_rip %>% 
+                      left_join(resumen_rip_semana_pasada)
+  
+  # Consolidamos info.
+  metricas = resumen_cons  %>% left_join(resumen_rip_cons) %>% 
+             dplyr::rename_with(function(x){return(tipo)},starts_with("INTERES"))
+  return(metricas)
   
 }
 
@@ -263,9 +157,6 @@ fx_graficas = function(tipo,filtro){
                 Fallecidos=sum(Fallecidos,na.rm=TRUE)) %>% ungroup() %>%
       mutate(Infectados=cumsum(Infectados),
              Fallecidos=cumsum(Fallecidos)) 
-    # melt(id.vars="Semana",
-    #      variable.name="Grupo",
-    #      value.name="Cantidad de personas")
     
     # Parametros para el segundo eje
     ml = with(consolidado_plot,lm(Fallecidos ~ Infectados))
@@ -331,7 +222,10 @@ ui <- fluidPage(
                             )
                             )),
                tabPanel("Estadisticas de selección",
-                        withSpinner(imageOutput("grafica"),type=2))
+                        p("Esta pestaña muestra algunas estadísticas de interés del polígono seleccionado.
+                          Para hacer uso de eta pestaña, seleccione algún tipo de análisis y seleccione
+                          algún polígono graficado en el mapa."),
+                        imageOutput("grafica"))
                
                ))
 
@@ -354,7 +248,7 @@ observe({
     
     depart_selecc = input$Departamento
     data_selecc = data_depart[data_depart$NOMBDEP %in% depart_selecc,]
-    metricas = fx_metricas("Dep",depart_selecc)
+    metricas = fx_metricas("DEPARTAMENTO",depart_selecc)
     data_selecc@data =  data_selecc@data %>% left_join(metricas,by= c("NOMBDEP"="DEPARTAMENTO"))
     
     labels = sprintf(
@@ -366,9 +260,9 @@ observe({
       Infectados ayer: %d <br/>
       Fallecidos totales: %d <br/>",
       metricas$DEPARTAMENTO,
-      metricas$TOTAL,
-      metricas$FEMENINO,
-      metricas$MASCULINO,
+      metricas$TOTAL_I,
+      metricas$FEMENINO_I,
+      metricas$MASCULINO_I,
       metricas$PICO,
       metricas$INFECTADOS_AYER,
       metricas$TOTAL_F) %>% lapply(htmltools::HTML)
@@ -396,10 +290,10 @@ observe({
     
     dist_selecc = input$Distrito
     data_selecc = data_distrital[data_distrital$NOMBDIST %in% dist_selecc,]
-    metricas = fx_metricas("Dist",dist_selecc)
+    metricas = fx_metricas("DISTRITO",dist_selecc)
     data_selecc@data =  data_selecc@data %>% 
                         left_join(metricas,by= c("NOMBDIST"="DISTRITO"))  %>%
-                        mutate(LABEL=pmap(list(a=NOMBDIST,b=TOTAL,c=FEMENINO,d=MASCULINO,
+                        mutate(LABEL=pmap(list(a=NOMBDIST,b=TOTAL_I,c=FEMENINO_I,d=MASCULINO_I,
                                                e=PICO_INF,f=INFECTADOS_AYER,g=TOTAL_F),
                                     function(a,b,c,d,e,f,g){
                                     htmltools::HTML(sprintf("<strong>%s</strong><br/>
@@ -459,13 +353,19 @@ id_poligono = reactive({
     aux}
   })
 
-
 output$grafica = renderImage({
   if(is.null(id_poligono())){
-    return(NULL)
+    list(src="http://www.i2symbol.com/images/abc-123/o/white_smiling_face_u263A_icon_256x256.png",
+         filetype = "image/png",
+         alt="Error: No ha seleccionado ninguna opcion")
   }
   else{
     analisis = input$Analisis
+    
+    progress <- shiny::Progress$new()
+    on.exit(progress$close())
+    
+    progress$set(message = 'Generando gráfica')
     
     if(analisis=="Departamental"){
       departamento = id_poligono()
@@ -474,7 +374,6 @@ output$grafica = renderImage({
            contentType = 'image/gif') }
 
     }
-  
     },deleteFile = TRUE)
 
 }
