@@ -1,14 +1,22 @@
-options(stringsAsFactors = FALSE)
+options(stringsAsFactors = FALSE,
+        spinner.color="#0275D8",
+        spinner.color.background="#ffffff",
+        spinner.size=2)
 library(dplyr)
 library(rgdal)
 library(leaflet)
 library(tictoc)
 library(shiny)
 library(reshape)
+library(reshape2)
 library(lubridate)
 library(purrr)
+library(ggplot2)
+library(gganimate)
+library(gifski)
+library(shinycssloaders)
 
-#setwd(r'(C:\Users\Leo\Desktop\Proyecto COVID - R)')
+setwd("C://Users//Leo//Desktop//Proyecto COVID - R")
 
 # Datas GeoJson
 data_depart = readOGR('peru_departamental_simple.geojson')
@@ -219,17 +227,87 @@ fx_metricas =  function(tipo,filtro){
   
 }
 
+fx_graficas = function(tipo,filtro){
+  if(tipo=="Dep"){
+
+    df_fechas = data.frame(FECHA_RESULTADO=seq(as.Date("16-03-2020","%d-%m-%Y"),Sys.Date()-1,by="days"))
+    
+    contagiados_plot = contagiados %>%
+      select(FECHA_RESULTADO,DEPARTAMENTO,EDAD,SEXO) %>%
+      mutate(FECHA_RESULTADO=as.Date(FECHA_RESULTADO,format='%d/%m/%Y'),
+             SEXO=ifelse(SEXO=='','POR DETERMINAR',SEXO),
+             DIA=weekdays(FECHA_RESULTADO)) %>% 
+      filter(DEPARTAMENTO %in% filtro & !is.na(FECHA_RESULTADO)) %>%
+      group_by(FECHA_RESULTADO) %>%
+      summarise(Infectados=n())
+    
+    contagiados_final = contagiados_plot %>% merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
+      mutate(Infectados=ifelse(is.na(Infectados),0,Infectados))%>% 
+      select(FECHA_RESULTADO,Infectados)
+    
+    fallecidos_plot =   fallecidos %>%
+      select(FECHA_FALLECIMIENTO,DEPARTAMENTO,EDAD_DECLARADA,SEXO) %>%
+      mutate(FECHA_FALLECIMIENTO=as.Date(FECHA_FALLECIMIENTO,format='%d/%m/%Y'))%>% 
+      filter(DEPARTAMENTO %in% filtro & !is.na(FECHA_FALLECIMIENTO)) %>%
+      group_by(FECHA_FALLECIMIENTO) %>%
+      summarise(Fallecidos=n()) %>% dplyr::rename("FECHA_RESULTADO"="FECHA_FALLECIMIENTO")
+    
+    fallecidos_final = fallecidos_plot %>% merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
+      mutate(Fallecidos=ifelse(is.na(Fallecidos),0,Fallecidos)) %>% 
+      select(FECHA_RESULTADO,Fallecidos)
+    
+    consolidado_plot = contagiados_final %>% left_join(fallecidos_final) %>% 
+      mutate(Semana=isoweek(FECHA_RESULTADO)-11) %>% 
+      group_by(Semana) %>% 
+      summarise(Infectados=sum(Infectados),
+                Fallecidos=sum(Fallecidos,na.rm=TRUE)) %>% ungroup() %>%
+      mutate(Infectados=cumsum(Infectados),
+             Fallecidos=cumsum(Fallecidos)) 
+    # melt(id.vars="Semana",
+    #      variable.name="Grupo",
+    #      value.name="Cantidad de personas")
+    
+    # Parametros para el segundo eje
+    ml = with(consolidado_plot,lm(Fallecidos ~ Infectados))
+    b = ml$coefficients[2]
+    
+    grafica<- ggplot(aes(x=Semana),data=consolidado_plot) +
+      geom_line(aes(y=Infectados,colour="Infectados"),size=1)+
+      geom_line(aes(y=Fallecidos/b,colour="Fallecidos"),size=1,linetype="dashed")+
+      geom_point(aes(y=Infectados,colour="Infectados"),size=2.5)+
+      geom_point(aes(y=Fallecidos/b,colour="Fallecidos"),size=2.5)+
+      scale_y_continuous(sec.axis = sec_axis(~.*b,name="# de Fallecidos\n"),
+                         breaks=scales::pretty_breaks(n = 10)) +
+      labs(title=paste0("Evolución del coronavirus en \n",filtro),
+           x="\nSemana de\n cuarentena",
+           y="# de Infectados \n")+
+      scale_x_continuous(labels = as.character(consolidado_plot$Semana), 
+                         breaks = consolidado_plot$Semana)+
+      theme(legend.text=element_text(size = 12),
+            legend.title = element_blank(),
+            plot.title = element_text(hjust = 0.5,size=16,face="bold"),
+            axis.text=element_text(size = 12),
+            axis.title = element_text(size = 14)) +
+      transition_reveal(Semana)
+    gif <- animate(grafica,fps=1,nframes=length(consolidado_plot$Semana),
+                   width=1000,height=500)
+    anim_save("outfile.gif",gif)
+  }
+  
+}
+
 # Interfaz de usuario
 ui <- fluidPage(
+  
     navbarPage("Evolución de Coronavirus", id="naveg",
                tabPanel("Mapa interactivo",
                         div(class='outer',
-                            tags$style(type = "text/css", ".outer {position: fixed; top: 41px; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 0}"),
+                            tags$head(includeCSS("styles.css")),
                             leafletOutput("mapa",width = "100%", height = "100%"),
                             absolutePanel(id = "controls", class = "panel panel-default", fixed = TRUE,
                                           draggable = FALSE, top = 60, left = "auto", right = 20, bottom = "auto",
-                                          width = 330, height = "auto",
-                                          h4('Filtros de analisis',align='center'),
+                                          width = 350, height = "auto",
+                                          h2('Filtros de analisis',align='center'),
                                           
                                           selectizeInput('Analisis','Tipo de analisis',lista_analisis,
                                                          options = list( placeholder = 'Seleccione el tipo de analisis',
@@ -249,9 +327,12 @@ ui <- fluidPage(
                                           conditionalPanel(" input.Provincia !='' & input.Analisis=='Distrital'",
                                                            selectizeInput('Distrito','Distrito',list_distr,multiple=T,
                                                            options = list( placeholder = 'Seleccione la/las provincias',
-                                                                           onInitialize = I('function() { this.setValue(""); }')))),
+                                                                           onInitialize = I('function() { this.setValue(""); }'))))
                             )
-                            ))
+                            )),
+               tabPanel("Estadisticas de selección",
+                        withSpinner(imageOutput("grafica"),type=2))
+               
                ))
 
 
@@ -306,7 +387,8 @@ observe({
                     style = list("font-weight"="normal", 
                                  padding = "3px 8px"),
                     textsize = "12px",
-                    direction = "auto"))
+                    direction = "auto"),
+                  layerId = ~NOMBDEP)
   }
   
   if(analisis=='Distrital'){
@@ -355,22 +437,47 @@ observe({
                `$`('NOMBPROV') %>% unique() %>% sort()
 
   stillSelected<-isolate(input$Provincia[input$Provincia %in% provincias])
-  
+
   updateSelectizeInput(session,"Provincia",choices=provincias,
                        selected=stillSelected,server=T) })
 
 observe({
   distritos = data_distrital@data %>% filter(NOMBPROV %in% input$Provincia) %>%
               `$`('NOMBDIST') %>% unique() %>% sort()
-  
+
   stillSelected<-isolate(input$Distrito[input$Distrito %in% distritos])
-  
+
   updateSelectizeInput(session,"Distrito",choices=distritos,
                        selected=stillSelected,server=T)
 })
 
+id_poligono = reactive({
+  if(is.null(input$mapa_shape_click)){
+    NULL}
+  else{
+    aux = input$mapa_shape_click$id
+    aux}
+  })
+
+
+output$grafica = renderImage({
+  if(is.null(id_poligono())){
+    return(NULL)
+  }
+  else{
+    analisis = input$Analisis
+    
+    if(analisis=="Departamental"){
+      departamento = id_poligono()
+      grafica = fx_graficas("Dep",departamento)
+      list(src = "outfile.gif",
+           contentType = 'image/gif') }
+
+    }
+  
+    },deleteFile = TRUE)
+
 }
 
 shinyApp(ui = ui, server = server)
-
 
