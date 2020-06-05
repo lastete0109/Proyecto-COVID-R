@@ -17,6 +17,7 @@ setwd("C://Users//Leo//Desktop//Proyecto COVID - R")
 
 # Datas GeoJson
 data_depart = readOGR('peru_departamental_simple.geojson')
+data_prov = readOGR('peru_provincial_simple.geojson')
 data_distrital = readOGR('peru_distrital_simple.geojson')
 
 # Informacion del MINSA
@@ -30,6 +31,7 @@ list_distr = as.character(sort(unique(data_distrital$NOMBDIST)))
 lista_analisis = c('Departamental','Provincial','Distrital')
 
 fx_metricas =  function(tipo,filtro){
+  
   posibles = c("DEPARTAMENTO","DISTRITO","PROVINCIA")
   
   dia_semana = ifelse(wday(Sys.Date())-1==0,7,wday(Sys.Date())-1)
@@ -116,7 +118,10 @@ fx_metricas =  function(tipo,filtro){
   
   # Consolidamos info.
   metricas = resumen_cons  %>% left_join(resumen_rip_cons) %>% 
+             mutate_at(vars(-INTERES,-DIAS_MAS_INFECTADOS),
+                       list(~ifelse(is.na(.),0,.))) %>%
              dplyr::rename_with(function(x){return(tipo)},starts_with("INTERES"))
+  
   return(metricas)
   
 }
@@ -264,6 +269,7 @@ fx_graficas2 = function(tipo,filtro){
   return(grafica)
 }
 
+#################################################
 # Interfaz de usuario
 ui <- fluidPage(
   
@@ -310,6 +316,7 @@ ui <- fluidPage(
                
                ))
 
+#################################################
 
 # Codigo de servidor
 server <- function(input, output,session){
@@ -364,6 +371,48 @@ observe({
                     textsize = "12px",
                     direction = "auto"),
                   layerId = ~NOMBDEP)
+  }
+  
+  if(analisis=='Provincial'){
+    req(input$Provincia)
+
+    prov_selecc = input$Provincia
+    data_selecc = data_prov[data_prov$NOMBPROV %in% prov_selecc,]
+    metricas = fx_metricas("PROVINCIA",prov_selecc)
+    data_selecc@data =  data_selecc@data %>% left_join(metricas,by= c("NOMBPROV"="PROVINCIA"))
+    
+    labels = sprintf(
+      "<strong>%s</strong><br/>
+      Infectados totales: %d<br/>
+      Mujeres: %d<br/>
+      Hombres: %d<br/>
+      Pico de infectados: %s<br/>
+      Infectados ayer: %d <br/>
+      Fallecidos totales: %d <br/>",
+      metricas$PROVINCIA,
+      metricas$TOTAL_I,
+      metricas$FEMENINO_I,
+      metricas$MASCULINO_I,
+      metricas$PICO,
+      metricas$INFECTADOS_AYER,
+      metricas$TOTAL_F) %>% lapply(htmltools::HTML)
+    
+    leafletProxy("mapa") %>%
+      clearShapes() %>%
+      addPolygons(stroke = TRUE,
+                  color='black',
+                  weight = 1,
+                  data=data_selecc,
+                  label = labels,
+                  highlight = highlightOptions(bringToFront = TRUE,
+                                               color="red",
+                                               weight=3),
+                  labelOptions = labelOptions(
+                    style = list("font-weight"="normal", 
+                                 padding = "3px 8px"),
+                    textsize = "12px",
+                    direction = "auto"),
+                  layerId = ~NOMBPROV)
   }
   
   if(analisis=='Distrital'){
@@ -428,8 +477,8 @@ observe({
 })
 
 id_poligono = reactive({
-req(input$mapa_shape_click)
-input$mapa_shape_click$id
+  req(input$mapa_shape_click)
+  input$mapa_shape_click$id
 })
 
 output$grafica = renderImage({
@@ -449,6 +498,11 @@ output$grafica = renderImage({
       grafica = fx_graficas("DISTRITO",distrito)
       list(src = "outfile.gif",
            contentType = 'image/gif') }
+    else{
+      provincia = id_poligono()
+      grafica = fx_graficas("PROVINCIA",provincia)
+      list(src = "outfile.gif",
+           contentType = 'image/gif') }
     
     },deleteFile = TRUE)
 
@@ -464,6 +518,9 @@ output$grafica2 = renderPlot({
     else if(analisis=="Distrital"){
       distrito = id_poligono()
       fx_graficas2("DISTRITO",distrito)}
+    else{
+      provincia = id_poligono()
+      fx_graficas2("PROVINCIA",provincia)}
     
 })
 
