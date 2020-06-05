@@ -300,7 +300,7 @@ ui <- fluidPage(
                             )),
                tabPanel("Estadisticas de selección",
                         p("Esta pestaña muestra algunas estadísticas de interés del polígono seleccionado.
-                          Para hacer uso de eta pestaña, seleccione algún tipo de análisis y seleccione
+                          Para hacer uso de esta pestaña, seleccione algún tipo de análisis y seleccione
                           algún polígono graficado en el mapa."),
                         fluidRow(
                           splitLayout(cellWidths = c("50%", "50%"), 
@@ -428,46 +428,31 @@ observe({
 })
 
 id_poligono = reactive({
-  if(is.null(input$mapa_shape_click)){
-    NULL}
-  else{
-    aux = input$mapa_shape_click$id
-    aux}
-  })
+req(input$mapa_shape_click)
+input$mapa_shape_click$id
+})
 
 output$grafica = renderImage({
-  if(is.null(id_poligono())){
-    list(src="http://www.i2symbol.com/images/abc-123/o/white_smiling_face_u263A_icon_256x256.png",
-         filetype = "image/png",
-         alt="Error: No ha seleccionado ninguna opcion")
-  }
-  else{
     analisis = input$Analisis
     progress <- shiny::Progress$new()
     on.exit(progress$close())
     progress$set(message = 'Generando gif')
+    
     
     if(analisis=="Departamental"){
       departamento = id_poligono()
       grafica = fx_graficas("DEPARTAMENTO",departamento)
       list(src = "outfile.gif",
            contentType = 'image/gif') }
-    
-    
-    if(analisis=="Distrital"){
+    else if(analisis=="Distrital"){
       distrito = id_poligono()
       grafica = fx_graficas("DISTRITO",distrito)
       list(src = "outfile.gif",
            contentType = 'image/gif') }
-
-    }
+    
     },deleteFile = TRUE)
 
 output$grafica2 = renderPlot({
-  if(is.null(id_poligono())){
-    return(NULL)
-  }
-  else{
     analisis = input$Analisis
     progress <- shiny::Progress$new()
     on.exit(progress$close())
@@ -476,14 +461,10 @@ output$grafica2 = renderPlot({
     if(analisis=="Departamental"){
       departamento = id_poligono()
       fx_graficas2("DEPARTAMENTO",departamento)}
-    
-    if(analisis=="Distrital"){
+    else if(analisis=="Distrital"){
       distrito = id_poligono()
       fx_graficas2("DISTRITO",distrito)}
     
-    
-    
-    }
 })
 
 }
