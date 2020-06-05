@@ -122,69 +122,146 @@ fx_metricas =  function(tipo,filtro){
 }
 
 fx_graficas = function(tipo,filtro){
-  if(tipo=="Dep"){
-
-    df_fechas = data.frame(FECHA_RESULTADO=seq(as.Date("16-03-2020","%d-%m-%Y"),Sys.Date()-1,by="days"))
-    
-    contagiados_plot = contagiados %>%
-      select(FECHA_RESULTADO,DEPARTAMENTO,EDAD,SEXO) %>%
-      mutate(FECHA_RESULTADO=as.Date(FECHA_RESULTADO,format='%d/%m/%Y'),
-             SEXO=ifelse(SEXO=='','POR DETERMINAR',SEXO),
-             DIA=weekdays(FECHA_RESULTADO)) %>% 
-      filter(DEPARTAMENTO %in% filtro & !is.na(FECHA_RESULTADO)) %>%
-      group_by(FECHA_RESULTADO) %>%
-      summarise(Infectados=n())
-    
-    contagiados_final = contagiados_plot %>% merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
-      mutate(Infectados=ifelse(is.na(Infectados),0,Infectados))%>% 
-      select(FECHA_RESULTADO,Infectados)
-    
-    fallecidos_plot =   fallecidos %>%
-      select(FECHA_FALLECIMIENTO,DEPARTAMENTO,EDAD_DECLARADA,SEXO) %>%
-      mutate(FECHA_FALLECIMIENTO=as.Date(FECHA_FALLECIMIENTO,format='%d/%m/%Y'))%>% 
-      filter(DEPARTAMENTO %in% filtro & !is.na(FECHA_FALLECIMIENTO)) %>%
-      group_by(FECHA_FALLECIMIENTO) %>%
-      summarise(Fallecidos=n()) %>% dplyr::rename("FECHA_RESULTADO"="FECHA_FALLECIMIENTO")
-    
-    fallecidos_final = fallecidos_plot %>% merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
-      mutate(Fallecidos=ifelse(is.na(Fallecidos),0,Fallecidos)) %>% 
-      select(FECHA_RESULTADO,Fallecidos)
-    
-    consolidado_plot = contagiados_final %>% left_join(fallecidos_final) %>% 
-      mutate(Semana=isoweek(FECHA_RESULTADO)-11) %>% 
-      group_by(Semana) %>% 
-      summarise(Infectados=sum(Infectados),
-                Fallecidos=sum(Fallecidos,na.rm=TRUE)) %>% ungroup() %>%
-      mutate(Infectados=cumsum(Infectados),
-             Fallecidos=cumsum(Fallecidos)) 
-    
-    # Parametros para el segundo eje
-    ml = with(consolidado_plot,lm(Fallecidos ~ Infectados))
-    b = ml$coefficients[2]
-    
-    grafica<- ggplot(aes(x=Semana),data=consolidado_plot) +
-      geom_line(aes(y=Infectados,colour="Infectados"),size=1)+
-      geom_line(aes(y=Fallecidos/b,colour="Fallecidos"),size=1,linetype="dashed")+
-      geom_point(aes(y=Infectados,colour="Infectados"),size=2.5)+
-      geom_point(aes(y=Fallecidos/b,colour="Fallecidos"),size=2.5)+
-      scale_y_continuous(sec.axis = sec_axis(~.*b,name="# de Fallecidos\n"),
-                         breaks=scales::pretty_breaks(n = 10)) +
-      labs(title=paste0("Evolución del coronavirus en \n",filtro),
-           x="\nSemana de\n cuarentena",
-           y="# de Infectados \n")+
-      scale_x_continuous(labels = as.character(consolidado_plot$Semana), 
-                         breaks = consolidado_plot$Semana)+
-      theme(legend.text=element_text(size = 12),
-            legend.title = element_blank(),
-            plot.title = element_text(hjust = 0.5,size=16,face="bold"),
-            axis.text=element_text(size = 12),
-            axis.title = element_text(size = 14)) +
-      transition_reveal(Semana)
-    gif <- animate(grafica,fps=1,nframes=length(consolidado_plot$Semana),
-                   width=1000,height=500)
-    anim_save("outfile.gif",gif)
-  }
   
+  posibles = c("DEPARTAMENTO","DISTRITO","PROVINCIA")
+  df_fechas = data.frame(FECHA_RESULTADO=seq(as.Date("16-03-2020","%d-%m-%Y"),Sys.Date()-1,by="days"))
+  
+  contagiados_clean = contagiados %>%
+    select(FECHA_RESULTADO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD,SEXO) %>%
+    mutate(FECHA_RESULTADO=as.Date(FECHA_RESULTADO,format='%d/%m/%Y'),
+           SEXO=ifelse(SEXO=='','POR DETERMINAR',SEXO),
+           PROVINCIA=ifelse(grepl('EN INVESTIGACIÓN',PROVINCIA),NA,PROVINCIA),
+           DISTRITO=ifelse(grepl('EN INVESTIGACIÓN',DISTRITO),NA,DISTRITO))
+  
+  fallecidos_clean =  fallecidos %>%
+    select(FECHA_FALLECIMIENTO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD_DECLARADA,SEXO) %>%
+    mutate(FECHA_FALLECIMIENTO=as.Date(FECHA_FALLECIMIENTO,format='%d/%m/%Y'),
+           PROVINCIA=ifelse(PROVINCIA=="",NA,PROVINCIA),
+           DISTRITO=ifelse(DISTRITO=="",NA,toupper(DISTRITO)))
+  
+  # Nos quedamos solo con las columnas de interes
+  contagiados_interes = contagiados_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
+  
+  fallecidos_interes =  fallecidos_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
+  
+  
+  # Grafica: Infectados x semana de cuarentena
+  
+  contagiados_final = contagiados_interes %>%
+    filter(INTERES %in% filtro & !is.na(FECHA_RESULTADO)) %>%
+    group_by(FECHA_RESULTADO) %>%
+    summarise(Infectados=n()) %>% 
+    merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
+    mutate(Infectados=ifelse(is.na(Infectados),0,Infectados))%>% 
+    select(FECHA_RESULTADO,Infectados)
+  
+  fallecidos_final =  fallecidos_interes %>%
+    filter(INTERES %in% filtro & !is.na(FECHA_FALLECIMIENTO)) %>%
+    group_by(FECHA_FALLECIMIENTO) %>%
+    summarise(Fallecidos=n()) %>% dplyr::rename("FECHA_RESULTADO"="FECHA_FALLECIMIENTO") %>%
+    merge(df_fechas,by="FECHA_RESULTADO",all=TRUE) %>% 
+    mutate(Fallecidos=ifelse(is.na(Fallecidos),0,Fallecidos)) %>% 
+    select(FECHA_RESULTADO,Fallecidos)
+  
+  consolidado_plot = contagiados_final %>% left_join(fallecidos_final) %>% 
+    mutate(Semana=isoweek(FECHA_RESULTADO)-11) %>% 
+    group_by(Semana) %>% 
+    summarise(Infectados=sum(Infectados),
+              Fallecidos=sum(Fallecidos,na.rm=TRUE)) %>% ungroup() %>%
+    mutate(Infectados=cumsum(Infectados),
+           Fallecidos=cumsum(Fallecidos)) 
+  
+  # Parametros para el segundo eje
+  ml = with(consolidado_plot,lm(Fallecidos ~ Infectados))
+  b = ml$coefficients[2]
+  
+  grafica<- ggplot(aes(x=Semana),data=consolidado_plot) +
+    geom_line(aes(y=Infectados,colour="Infectados"),size=1)+
+    geom_line(aes(y=Fallecidos/b,colour="Fallecidos"),size=1,linetype="dashed")+
+    geom_point(aes(y=Infectados,colour="Infectados"),size=2.5)+
+    geom_point(aes(y=Fallecidos/b,colour="Fallecidos"),size=2.5)+
+    scale_y_continuous(sec.axis = sec_axis(~.*b,name="# de Fallecidos\n"),
+                       breaks=scales::pretty_breaks(n = 10)) +
+    labs(title=paste0("Evolución del coronavirus en \n",filtro),
+         x="\nSemana de\n cuarentena",
+         y="# de Infectados \n")+
+    scale_x_continuous(labels = as.character(consolidado_plot$Semana), 
+                       breaks = consolidado_plot$Semana)+
+    theme(legend.text=element_text(size = 12),
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5,size=16,face="bold"),
+          axis.text=element_text(size = 12),
+          axis.title = element_text(size = 14)) +
+    transition_reveal(Semana)
+  gif <- animate(grafica,fps=1,nframes=length(consolidado_plot$Semana),
+                 width=750,height=400)
+  anim_save("outfile.gif",gif)
+  }
+
+fx_graficas2 = function(tipo,filtro){
+  posibles = c("DEPARTAMENTO","DISTRITO","PROVINCIA")
+  df_fechas = data.frame(FECHA_RESULTADO=seq(as.Date("16-03-2020","%d-%m-%Y"),Sys.Date()-1,by="days"))
+  
+  contagiados_clean = contagiados %>%
+    select(FECHA_RESULTADO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD,SEXO) %>%
+    mutate(FECHA_RESULTADO=as.Date(FECHA_RESULTADO,format='%d/%m/%Y'),
+           SEXO=ifelse(SEXO=='','POR DETERMINAR',SEXO),
+           PROVINCIA=ifelse(grepl('EN INVESTIGACIÓN',PROVINCIA),NA,PROVINCIA),
+           DISTRITO=ifelse(grepl('EN INVESTIGACIÓN',DISTRITO),NA,DISTRITO))
+  
+  fallecidos_clean =  fallecidos %>%
+    select(FECHA_FALLECIMIENTO,DEPARTAMENTO,PROVINCIA,DISTRITO,EDAD_DECLARADA,SEXO) %>%
+    mutate(FECHA_FALLECIMIENTO=as.Date(FECHA_FALLECIMIENTO,format='%d/%m/%Y'),
+           PROVINCIA=ifelse(PROVINCIA=="",NA,PROVINCIA),
+           DISTRITO=ifelse(DISTRITO=="",NA,toupper(DISTRITO)))
+  
+  # Nos quedamos solo con las columnas de interes
+  contagiados_interes = contagiados_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
+  
+  fallecidos_interes =  fallecidos_clean %>% 
+    select(-posibles[is.na(match(posibles,tipo))]) %>%
+    dplyr::rename("INTERES"=tipo)
+  
+  contagiados_density = contagiados_interes %>% 
+    filter(INTERES %in% filtro & SEXO!="POR DETERMINAR" & !is.na(EDAD))  %>%
+    select(SEXO,EDAD)
+  
+  fallecidos_density =  fallecidos_interes %>% 
+    filter(INTERES %in% filtro & SEXO!="INDETERMINADO" & !is.na(EDAD_DECLARADA))  %>%
+    select(SEXO,EDAD_DECLARADA)
+  
+  estadisticos = data.frame(Metrica=rep(c("Moda","Media","Mediana"),times=2),
+                            Grupo=rep(c("Contagiado","Fallecido"),each=3),
+                            Medidas= c(density(contagiados_density$EDAD)$x[which.max(density(contagiados_density$EDAD)$y)], 
+                                       mean(contagiados_density$EDAD),
+                                       median(contagiados_density$EDAD),
+                                       density(fallecidos_density$EDAD_DECLARADA)$x[which.max(density(fallecidos_density$EDAD_DECLARADA)$y)],
+                                       mean(fallecidos_density$EDAD_DECLARADA),
+                                       median(fallecidos_density$EDAD_DECLARADA)
+                            ))
+  
+  grafica<- ggplot() + 
+            geom_density(aes(x=EDAD,fill="Contagiado"),data=contagiados_density,alpha=0.25) + 
+            geom_density(aes(x=EDAD_DECLARADA,fill="Fallecido"),data=fallecidos_density,alpha=0.25)+
+            geom_vline(aes(xintercept=Medidas,linetype=Metrica,color=Metrica),size=1,data=estadisticos)+
+            scale_x_continuous(breaks=scales::pretty_breaks(n=10)) +
+            scale_y_continuous(breaks=scales::pretty_breaks(n=10))+
+            labs(title=paste0("Edades de contagiados y fallecidos \n por coronavirus en ",filtro),
+                 x="\n Edad",
+                 y="\n Probabilidad de \n evento",
+                 fill="Grupo") +
+            theme(legend.text=element_text(size = 12),
+                  legend.title = element_blank(),
+                  plot.title = element_text(hjust = 0.5,size=14,face="bold"),
+                  axis.text=element_text(size = 12),
+                  axis.title = element_text(size = 14))
+  return(grafica)
 }
 
 # Interfaz de usuario
@@ -225,7 +302,11 @@ ui <- fluidPage(
                         p("Esta pestaña muestra algunas estadísticas de interés del polígono seleccionado.
                           Para hacer uso de eta pestaña, seleccione algún tipo de análisis y seleccione
                           algún polígono graficado en el mapa."),
-                        imageOutput("grafica"))
+                        fluidRow(
+                          splitLayout(cellWidths = c("50%", "50%"), 
+                                      imageOutput("grafica"), 
+                                      plotOutput("grafica2")))
+                        )
                
                ))
 
@@ -320,7 +401,8 @@ observe({
                     style = list("font-weight"="normal", 
                                  padding = "3px 8px"),
                     textsize = "12px",
-                    direction = "auto"))
+                    direction = "auto"),
+                  layerId = ~NOMBDIST)
     
   }
   
@@ -361,20 +443,48 @@ output$grafica = renderImage({
   }
   else{
     analisis = input$Analisis
-    
     progress <- shiny::Progress$new()
     on.exit(progress$close())
-    
-    progress$set(message = 'Generando gráfica')
+    progress$set(message = 'Generando gif')
     
     if(analisis=="Departamental"){
       departamento = id_poligono()
-      grafica = fx_graficas("Dep",departamento)
+      grafica = fx_graficas("DEPARTAMENTO",departamento)
+      list(src = "outfile.gif",
+           contentType = 'image/gif') }
+    
+    
+    if(analisis=="Distrital"){
+      distrito = id_poligono()
+      grafica = fx_graficas("DISTRITO",distrito)
       list(src = "outfile.gif",
            contentType = 'image/gif') }
 
     }
     },deleteFile = TRUE)
+
+output$grafica2 = renderPlot({
+  if(is.null(id_poligono())){
+    return(NULL)
+  }
+  else{
+    analisis = input$Analisis
+    progress <- shiny::Progress$new()
+    on.exit(progress$close())
+    progress$set(message = 'Generando gráfica')
+    
+    if(analisis=="Departamental"){
+      departamento = id_poligono()
+      fx_graficas2("DEPARTAMENTO",departamento)}
+    
+    if(analisis=="Distrital"){
+      distrito = id_poligono()
+      fx_graficas2("DISTRITO",distrito)}
+    
+    
+    
+    }
+})
 
 }
 
