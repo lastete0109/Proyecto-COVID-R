@@ -1,8 +1,8 @@
 options(stringsAsFactors = FALSE)
-
 library(dplyr)
 library(rgdal)
 library(leaflet)
+library(shinyWidgets)
 library(tictoc)
 library(shiny)
 library(reshape)
@@ -20,13 +20,18 @@ data_depart = readOGR('peru_departamental_simple.geojson')
 data_prov = readOGR('peru_provincial_simple.geojson')
 data_distrital = readOGR('peru_distrital_simple.geojson')
 
+# Algunos cambios en los nombres
+data_prov$NOMBPROV = gsub("Ã'","Ñ",data_prov$NOMBPROV)
+data_distrital$NOMBDIST = data_distrital$NOMBDIST %>% gsub("Ã'","Ñ",.) %>% 
+                          ifelse(.=="MAGDALENA VIEJA","PUEBLO LIBRE",.) 
+
 # Informacion del MINSA
 contagiados = read.csv('https://cloud.minsa.gob.pe/s/Y8w3wHsEdYQSZRp/download')
 fallecidos = read.csv('https://cloud.minsa.gob.pe/s/Md37cjXmjT9qYSa/download')
 
 # Despegables
 list_depart = as.character(data_depart$NOMBDEP)
-list_prov = as.character(sort(unique(data_distrital$NOMBPROV)))
+list_prov = as.character(sort(unique(data_prov$NOMBPROV)))
 list_distr = as.character(sort(unique(data_distrital$NOMBDIST)))
 lista_analisis = c('Departamental','Provincial','Distrital')
 
@@ -118,7 +123,7 @@ fx_metricas =  function(tipo,filtro){
   
   # Consolidamos info.
   metricas = resumen_cons  %>% left_join(resumen_rip_cons) %>% 
-             mutate_at(vars(-INTERES,-DIAS_MAS_INFECTADOS),
+             mutate_at(vars(-INTERES,-DIAS_MAS_INFECTADOS,-PICO_INF),
                        list(~ifelse(is.na(.),0,.))) %>%
              dplyr::rename_with(function(x){return(tipo)},starts_with("INTERES"))
   
@@ -269,54 +274,61 @@ fx_graficas2 = function(tipo,filtro){
   return(grafica)
 }
 
-#################################################
 # Interfaz de usuario
 ui <- fluidPage(
-  
-    navbarPage("Evolución de Coronavirus", id="naveg",
-               tabPanel("Mapa interactivo",
-                        div(class='outer',
-                            tags$head(includeCSS("styles.css")),
-                            leafletOutput("mapa",width = "100%", height = "100%"),
-                            absolutePanel(id = "controls", class = "panel panel-default", fixed = TRUE,
-                                          draggable = FALSE, top = 60, left = "auto", right = 20, bottom = "auto",
-                                          width = 350, height = "auto",
-                                          h2('Filtros de analisis',align='center'),
-                                          
-                                          selectizeInput('Analisis','Tipo de analisis',lista_analisis,
-                                                         options = list( placeholder = 'Seleccione el tipo de analisis',
-                                                                        onInitialize = I('function() { this.setValue(""); }'))),
-                                          
-                                          conditionalPanel("input.Analisis !='' ",
-                                                           selectizeInput('Departamento','Departamento',list_depart,multiple=T,
-                                                           options = list( placeholder = 'Seleccione el/los departamentos',
-                                                                          onInitialize = I('function() { this.setValue(""); }')))),
-                                          
-                                          conditionalPanel(" input.Departamento!= '' &
+  navbarPage("Evolución de Coronavirus", id="naveg",
+             tabPanel("Mapa interactivo",
+                      div(class='outer',
+                          tags$head(includeCSS("styles.css")),
+                          leafletOutput("mapa",width = "100%", height = "100%"),
+                          absolutePanel(id = "controls", class = "panel panel-default", fixed = TRUE,
+                                        draggable = FALSE, top = 60, left = "auto", right = 20, bottom = "auto",
+                                        width = 350, height = "auto",
+                                        h2('Filtros de analisis',align='center'),
+                                        
+                                        selectizeInput('Analisis','Tipo de analisis',lista_analisis,
+                                                       options = list( placeholder = 'Seleccione el tipo de analisis',
+                                                                       onInitialize = I('function() { this.setValue(""); }'))),
+                                        
+                                        conditionalPanel("input.Analisis !='' ",
+                                                         pickerInput('Departamento','Departamento',list_depart,multiple=T,
+                                                                     options=pickerOptions(actionsBox=TRUE,
+                                                                                           liveSearch=TRUE,
+                                                                                           deselectAllText="Deseleccione todos",
+                                                                                           selectAllText = "Seleccione todos",
+                                                                                           noneSelectedText="Elija el departamento",
+                                                                                           noneResultsText = "No se encontro el departamento",
+                                                                     ))),
+                                        
+                                        conditionalPanel(" input.Departamento!= '' &
                                                            (input.Analisis =='Provincial' | input.Analisis =='Distrital')",
-                                                           selectizeInput('Provincia','Provincia',list_prov,multiple=T,
-                                                           options = list( placeholder = 'Seleccione la/las provincias',
-                                                                           onInitialize = I('function() { this.setValue(""); }')))),
-                                          
-                                          conditionalPanel(" input.Provincia !='' & input.Analisis=='Distrital'",
-                                                           selectizeInput('Distrito','Distrito',list_distr,multiple=T,
-                                                           options = list( placeholder = 'Seleccione la/las provincias',
-                                                                           onInitialize = I('function() { this.setValue(""); }'))))
-                            )
-                            )),
-               tabPanel("Estadisticas de selección",
-                        p("Esta pestaña muestra algunas estadísticas de interés del polígono seleccionado.
+                                                         pickerInput('Provincia','Provincia',list_prov,multiple=T,
+                                                                     options=pickerOptions(actionsBox=TRUE,
+                                                                                           liveSearch=TRUE,
+                                                                                           deselectAllText="Deseleccione todos",
+                                                                                           selectAllText = "Seleccione todos",
+                                                                                           noneSelectedText="Elija la provincia",
+                                                                                           noneResultsText = "No se encontro la provincia"))),
+                                        
+                                        conditionalPanel(" input.Provincia !='' & input.Analisis=='Distrital'",
+                                                         pickerInput('Distrito','Distrito',list_distr,multiple=T,
+                                                                     options=pickerOptions(actionsBox=TRUE,
+                                                                                           liveSearch=TRUE,
+                                                                                           deselectAllText="Deseleccione todos",
+                                                                                           selectAllText = "Seleccione todos",
+                                                                                           noneSelectedText="Elija el distrito",
+                                                                                           noneResultsText = "No se encontro el distrito")))
+                          )
+                      )),
+             tabPanel("Estadisticas de selección",
+                      p("Esta pestaña muestra algunas estadísticas de interés del polígono seleccionado.
                           Para hacer uso de esta pestaña, seleccione algún tipo de análisis y seleccione
                           algún polígono graficado en el mapa."),
-                        fluidRow(
-                          splitLayout(cellWidths = c("50%", "50%"), 
-                                      imageOutput("grafica"), 
-                                      plotOutput("grafica2")))
-                        )
-               
-               ))
-
-#################################################
+                      fluidRow(
+                        splitLayout(cellWidths = c("50%", "50%"), 
+                                    imageOutput("grafica"), 
+                                    plotOutput("grafica2")))
+             )))
 
 # Codigo de servidor
 server <- function(input, output,session){
@@ -333,7 +345,7 @@ observe({
   
   if(analisis=='Departamental'){
     req(input$Departamento)
-    
+
     depart_selecc = input$Departamento
     data_selecc = data_depart[data_depart$NOMBDEP %in% depart_selecc,]
     metricas = fx_metricas("DEPARTAMENTO",depart_selecc)
@@ -355,11 +367,15 @@ observe({
       metricas$INFECTADOS_AYER,
       metricas$TOTAL_F) %>% lapply(htmltools::HTML)
     
-    leafletProxy("mapa") %>%
+    
+    if(length(depart_selecc)==1)
+    {leafletProxy("mapa") %>%
+      clearControls()%>%
       clearShapes() %>%
       addPolygons(stroke = TRUE,
                   color='black',
-                  weight = 1,
+                  weight = 2,
+                  opacity = 0.6,
                   data=data_selecc,
                   label = labels,
                   highlight = highlightOptions(bringToFront = TRUE,
@@ -368,16 +384,42 @@ observe({
                   labelOptions = labelOptions(
                     style = list("font-weight"="normal", 
                                  padding = "3px 8px"),
-                    textsize = "12px",
+                    textsize = "14px",
                     direction = "auto"),
-                  layerId = ~NOMBDEP)
-  }
+                  layerId = ~NOMBDEP)}
+    else{
+      paleta = colorNumeric("viridis",domain=data_selecc@data$TOTAL_I)
+      
+      leafletProxy("mapa") %>%
+        clearControls()%>%
+        clearShapes() %>%
+        addPolygons(stroke = TRUE,
+                    color=~paleta(TOTAL_I),
+                    weight = 2,
+                    opacity = 0.6,
+                    data=data_selecc,
+                    label = labels,
+                    highlight = highlightOptions(bringToFront = TRUE,
+                                                 color="red",
+                                                 weight=3),
+                    labelOptions = labelOptions(
+                      style = list("font-weight"="normal", 
+                                   padding = "3px 8px"),
+                      textsize = "14px",
+                      direction = "auto"),
+                    layerId = ~NOMBDEP)%>%
+         addLegend(pal = paleta, values = ~TOTAL_I, opacity = 0.7, title = "Cantidad de <br/>Infectados",
+                   position = "bottomright",data=data_selecc)
+    }
+    
+    }
   
   if(analisis=='Provincial'){
     req(input$Provincia)
-
+  
     prov_selecc = input$Provincia
-    data_selecc = data_prov[data_prov$NOMBPROV %in% prov_selecc,]
+    data_selecc = data_prov[data_prov$NOMBPROV %in% prov_selecc & 
+                            data_prov$FIRST_NOMB %in% input$Departamento,]
     metricas = fx_metricas("PROVINCIA",prov_selecc)
     data_selecc@data =  data_selecc@data %>% left_join(metricas,by= c("NOMBPROV"="PROVINCIA"))
     
@@ -397,11 +439,14 @@ observe({
       metricas$INFECTADOS_AYER,
       metricas$TOTAL_F) %>% lapply(htmltools::HTML)
     
+    if(length(input$Provincia)==1){
     leafletProxy("mapa") %>%
+      clearControls()%>%
       clearShapes() %>%
       addPolygons(stroke = TRUE,
                   color='black',
-                  weight = 1,
+                  weight = 2,
+                  opacity = 0.6,
                   data=data_selecc,
                   label = labels,
                   highlight = highlightOptions(bringToFront = TRUE,
@@ -410,16 +455,43 @@ observe({
                   labelOptions = labelOptions(
                     style = list("font-weight"="normal", 
                                  padding = "3px 8px"),
-                    textsize = "12px",
+                    textsize = "14px",
                     direction = "auto"),
-                  layerId = ~NOMBPROV)
-  }
+                  layerId = ~NOMBPROV)}
+    else{
+      paleta = colorNumeric("viridis",domain=data_selecc@data$TOTAL_I)
+
+      leafletProxy("mapa") %>%
+        clearControls()%>%
+        clearShapes() %>%
+        addPolygons(stroke = TRUE,
+                    color='black',
+                    weight = 2,
+                    opacity = 0.6,
+                    data=data_selecc,
+                    label = labels,
+                    highlight = highlightOptions(bringToFront = TRUE,
+                                                 color="red",
+                                                 weight=3),
+                    labelOptions = labelOptions(
+                      style = list("font-weight"="normal", 
+                                   padding = "3px 8px"),
+                      textsize = "14px",
+                      direction = "auto"),
+                    layerId = ~NOMBPROV)%>%
+        addLegend(pal = paleta, values = ~TOTAL_I, opacity = 0.7, title = "Cantidad de <br/>Infectados",
+                  position = "bottomright",data=data_selecc)
+      }
+      
+    }
   
   if(analisis=='Distrital'){
     req(input$Distrito)
     
     dist_selecc = input$Distrito
-    data_selecc = data_distrital[data_distrital$NOMBDIST %in% dist_selecc,]
+    data_selecc = data_distrital[data_distrital$NOMBDIST %in% dist_selecc & 
+                                 data_distrital$NOMBPROV %in% input$Provincia &
+                                 data_distrital$NOMBDEP %in% input$Departamento,]
     metricas = fx_metricas("DISTRITO",dist_selecc)
     data_selecc@data =  data_selecc@data %>% 
                         left_join(metricas,by= c("NOMBDIST"="DISTRITO"))  %>%
@@ -436,11 +508,14 @@ observe({
                                                              a,b,c,d,e,ifelse(is.na(f),0,f),g))}
                                                             ))
   
+    if(length(input$Distrito)==1){
     leafletProxy("mapa") %>%
+      clearControls()%>%
       clearShapes() %>%
       addPolygons(stroke = TRUE,
                   color='black',
-                  weight = 1,
+                  weight = 2,
+                  opacity = 0.6,
                   data=data_selecc,
                   label = ~LABEL,
                   highlight = highlightOptions(bringToFront = TRUE,
@@ -449,9 +524,32 @@ observe({
                   labelOptions = labelOptions(
                     style = list("font-weight"="normal", 
                                  padding = "3px 8px"),
-                    textsize = "12px",
+                    textsize = "14px",
                     direction = "auto"),
-                  layerId = ~NOMBDIST)
+                  layerId = ~NOMBDIST)}
+    else{
+      paleta = colorNumeric("viridis",domain=data_selecc@data$TOTAL_I)
+      
+      leafletProxy("mapa") %>%
+        clearControls()%>%
+        clearShapes() %>%
+        addPolygons(stroke = TRUE,
+                    color=~paleta(TOTAL_I),
+                    weight = 2,
+                    opacity = 0.6,
+                    data=data_selecc,
+                    label = ~LABEL,
+                    highlight = highlightOptions(bringToFront = TRUE,
+                                                 color="red",
+                                                 weight=3),
+                    labelOptions = labelOptions(
+                      style = list("font-weight"="normal", 
+                                   padding = "3px 8px"),
+                      textsize = "14px",
+                      direction = "auto"))%>%
+        addLegend(pal = paleta, values = ~TOTAL_I, opacity = 0.7, title = "Cantidad de <br/>Infectados",
+                  position = "bottomright",data=data_selecc)
+    }
     
   }
   
@@ -463,8 +561,8 @@ observe({
 
   stillSelected<-isolate(input$Provincia[input$Provincia %in% provincias])
 
-  updateSelectizeInput(session,"Provincia",choices=provincias,
-                       selected=stillSelected,server=T) })
+  updatePickerInput(session,"Provincia",choices=provincias,
+                       selected=stillSelected) })
 
 observe({
   distritos = data_distrital@data %>% filter(NOMBPROV %in% input$Provincia) %>%
@@ -472,8 +570,8 @@ observe({
 
   stillSelected<-isolate(input$Distrito[input$Distrito %in% distritos])
 
-  updateSelectizeInput(session,"Distrito",choices=distritos,
-                       selected=stillSelected,server=T)
+  updatePickerInput(session,"Distrito",choices=distritos,
+                       selected=stillSelected)
 })
 
 id_poligono = reactive({
