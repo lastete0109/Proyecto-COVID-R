@@ -2,7 +2,7 @@
 
 # Mapa de evolución del coronavirus en el Perú
 
-> El proyecto presenta un dashboard que permite ver métricas de la evolución del coronavirus en nuestro país ( infectados, fallecidos, pico de infectados...)
+> El repositorio presenta los codigos para el desarrollo de un dashboard que permite ver métricas de la evolución del coronavirus en nuestro país ( infectados, fallecidos, pico de infectados...)
 > por departamento, provincias y distritos, cada uno por separado. Además nos permite observar como ha evolucionado la curva de infectados y fallecidos
 > semana a semana desde la declaración de la cuarentena en nuestro país, así como la distribución de la edad de los mismos.</br>
 > Toda la información recabada proviene de la [fuente de datos abiertas del gobierno del Perú](https://www.datosabiertos.gob.pe/).</br>
@@ -24,11 +24,12 @@ El proyecto tiene como motivación principal brindar información que sea de ayu
  <img src="./Ejemplos/depart_metricas.png" width="900" height="400">
 
  ### Provinciales 
- <img src="./Ejemplos/prov_metricas.png" width="900" height="500">
+ <img src="./Ejemplos/prov_metricas.png" width="900" height="400">
 
  ### Distritales
- <img src="./Ejemplos/distr_metricas.png" width="900" height="500">
+ <img src="./Ejemplos/distr_metricas.png" width="900" height="400">
  
  ### Graficas
-  <img src="./Ejemplos/graficas.PNG" width="900" height="400">
-  <img src="./Ejemplos/distr_metricas2.png" width="900" height="400">
+ <img src="./Ejemplos/graficas.PNG" width="800" height="400">
+
+ <img src="./Ejemplos/distr_metricas2.png" width="800" height="400">
