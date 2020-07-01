@@ -18,4 +18,17 @@ El proyecto tiene como motivación principal brindar información que sea de ayu
  Un caso práctico, por ejemplo, sería que en los ultimos días a la fecha de hoy (01/07/20), en nuestro país se habla de [cuarentenas focalizadas](https://gestion.pe/peru/cuarentena-focalizada-coronavirus-peru-manana-comienza-la-cuarentena-focalizada-asi-sera-la-nueva-convivencia-covid-19-nndc-noticia/) en función a los departamentos que han tenido mayor cantidad infectados en las ultimas semanas, dicha medida se puede aplicar a niveles sociales y geográficos más precisos con el uso de la presenta herramienta.
 
  ## Screenshots
- 
+
+ ### Departamentales
+ <img src="./Ejemplos/depart.png" width="600" height="600">
+ <img src="./Ejemplos/depart_metricas.png" width="600" height="600">
+
+ ### Provinciales 
+ <img src="./Ejemplos/prov_metricas.png" width="600" height="600">
+
+ ### Distritales
+ <img src="./Ejemplos/distr_metricas.png" width="600" height="600">
+ <img src="./Ejemplos/distr_metricas2.png" width="600" height="600">
+
+ ### Graficas
+ <img src="./Ejemplos/graficas.png" width="600" height="600">
