@@ -32,9 +32,9 @@ Un caso práctico, por ejemplo, sería que en los ultimos días a la fecha de ho
  <img src="./Ejemplos/distr_metricas2.png" width="800" height="400">
 
 ## Status
-En desarrollo: actualmente el código se encuentra ejecutándose en un [servidor gratuito](https://www.shinyapps.io), el cual tiene ciertas limitaciones.
+En desarrollo: actualmente el código se encuentra ejecutándose en un [servidor gratuito](https://www.shinyapps.io), queda pendiente encontrar nuevas fuentes de información.
 
 ## Observaciones
-Actualmente, se tiene ciertos problemas con todos las ubicaciones que tengan un caracter no perteneciente al dominiio ASCII, por ejemplo: Breña o Cañete, todo esto debido a la implementación en limitaciones en la configuración del servidor.
+Actualmente, se tiene ciertos problemas con todos las ubicaciones que tengan un carácter no perteneciente al dominio ASCII, por ejemplo: Breña o Cañete, todo esto debido a las limitaciones en la configuración del servidor.
 
 
