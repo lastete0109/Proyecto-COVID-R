@@ -1,1 +1,1 @@
-# ![Example screenshot](./Encabezado/corona.jpg)
+# ![Example screenshot](./Encabezado/corona.jpg =700x150) 
