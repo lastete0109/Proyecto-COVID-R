@@ -1,1 +1,1 @@
-<img src="./Encabezado/corona.jpg" width="700" height="150">
+<img src="./Encabezado/corona.jpg" width="850" height="150">
