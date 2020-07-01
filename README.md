@@ -1,4 +1,5 @@
 <img src="./Encabezado/corona.jpg" width="850" height="150">
+
 # Mapa de evolución del coronavirus en el Peru
 
 > El proyecto presenta un dashboard que permite ver metricas de la evolucion del coronavirus en nuestro pais (infectados,fallecidos,pico de infectados...)
