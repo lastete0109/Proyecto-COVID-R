@@ -24,11 +24,11 @@ El proyecto tiene como motivación principal brindar información que sea de ayu
  <img src="./Ejemplos/depart_metricas.png" width="900" height="400">
 
  ### Provinciales 
- <img src="./Ejemplos/prov_metricas.png" width="900" height="400">
+ <img src="./Ejemplos/prov_metricas.png" width="900" height="500">
 
  ### Distritales
- <img src="./Ejemplos/distr_metricas.png" width="900" height="400">
+ <img src="./Ejemplos/distr_metricas.png" width="900" height="500">
  
  ### Graficas
-  <img src="./Ejemplos/graficas.PNG" width="800" height="400">
-  <img src="./Ejemplos/distr_metricas2.png" width="800" height="400">
+  <img src="./Ejemplos/graficas.PNG" width="900" height="400">
+  <img src="./Ejemplos/distr_metricas2.png" width="900" height="400">
