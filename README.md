@@ -20,15 +20,15 @@ El proyecto tiene como motivación principal brindar información que sea de ayu
  ## Screenshots
 
  ### Departamentales
- <img src="./Ejemplos/depart.png" width="600" height="600">
- <img src="./Ejemplos/depart_metricas.png" width="600" height="600">
+ <img src="./Ejemplos/depart.PNG" width="900" height="600">
+ <img src="./Ejemplos/depart_metricas.png" width="900" height="600">
 
  ### Provinciales 
- <img src="./Ejemplos/prov_metricas.png" width="600" height="600">
+ <img src="./Ejemplos/prov_metricas.png" width="900" height="600">
 
  ### Distritales
- <img src="./Ejemplos/distr_metricas.png" width="600" height="600">
- <img src="./Ejemplos/distr_metricas2.png" width="600" height="600">
-
+ <img src="./Ejemplos/distr_metricas.png" width="900" height="600">
+ 
  ### Graficas
- <img src="./Ejemplos/graficas.png" width="600" height="600">
+  <img src="./Ejemplos/graficas.PNG" width="1200" height="600">
+  <img src="./Ejemplos/distr_metricas2.png" width="1200" height="600">
