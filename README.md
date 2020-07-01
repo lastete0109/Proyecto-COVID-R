@@ -1,1 +1,1 @@
-# ![Example screenshot](./Encabezado/corona.jpg =700x150) 
+# ![Example screenshot](./Encabezado/corona.jpg ){:height="150px" width="700px"} 
