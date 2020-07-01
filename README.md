@@ -1,1 +1,1 @@
-# HOLA MUNDO
+# ![Example screenshot](./Encabezado/corona.jpg)
