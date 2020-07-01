@@ -15,4 +15,7 @@
 ## Informacion general
 
 El proyecto tiene como motivación principal brindar información que sea de ayuda o interés a cualquier público en general, ademas de ofrecer una guía para tomar acciones inteligentes de prevención y planificación.</br>
- Un caso práctico, por ejemplo, sería que en los ultimos días a la fecha de hoy (01/07/20), en nuestro país se habla de [cuarentenas focalizadas](https://gestion.pe/peru/cuarentena-focalizada-coronavirus-peru-manana-comienza-la-cuarentena-focalizada-asi-sera-la-nueva-convivencia-covid-19-nndc-noticia/) en función a los departamentos que han tenido mayor cantidad infectados en las ultimas semanas, dicha medida se puede aplicar a niveles sociales y geográficos más precisos.
+ Un caso práctico, por ejemplo, sería que en los ultimos días a la fecha de hoy (01/07/20), en nuestro país se habla de [cuarentenas focalizadas](https://gestion.pe/peru/cuarentena-focalizada-coronavirus-peru-manana-comienza-la-cuarentena-focalizada-asi-sera-la-nueva-convivencia-covid-19-nndc-noticia/) en función a los departamentos que han tenido mayor cantidad infectados en las ultimas semanas, dicha medida se puede aplicar a niveles sociales y geográficos más precisos con el uso de la presenta herramienta.
+
+ ## Screenshots
+ 
